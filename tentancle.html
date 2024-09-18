@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alien Shooter Game</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: black;
+        }
+        #score {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 10px;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #fff;
+        }
+        #game-over {
+            color: red;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <canvas id="alienCanvas"></canvas>
+    <div id="game-over" style="display: none;">Game Over! Press F5 to restart.</div>
+    <script>
+        const canvas = document.getElementById("alienCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const canvasWidth = 500;
+        const canvasHeight = 500;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        const pixelSize = 10;
+        const gridWidth = 8;
+        const gridHeight = 9;
+
+        const alienGrid = [
+            [0, 0, 1, 1, 1, 1, 0, 0],
+            [0, 1, 1, 2, 2, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 2, 2, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1],
+            [0, 1, 1, 2, 2, 1, 1, 0],
+            [0, 0, 1, 1, 1, 1, 0, 0],
+            [0, 2, 0, 0, 0, 0, 2, 0],
+            [2, 0, 0, 0, 0, 0, 0, 2]
+        ];
+
+        const colors = {
+            0: "transparent",
+            1: "#00ff00",
+            2: "#ff00ff"
+        };
+
+        let posX = canvas.width / 2 - (gridWidth * pixelSize) / 2;
+        let posY = 50;
+        let velocityX = (Math.random() - 0.5) * 2;
+        let velocityY = (Math.random() - 0.5) * 2;
+        const alienProjectiles = [];
+        const projectiles = [];
+        let shooterX = canvasWidth / 2;
+        const shooterWidth = 40;
+        const shooterHeight = 10;
+        let score = 0;
+        let gameOver = false;
+
+        const scoreElement = document.getElementById("score");
+
+        function updateScore() {
+            scoreElement.textContent = `Score: ${score}`;
+        }
+
+        function drawAlien(xOffset, yOffset) {
+            for (let y = 0; y < alienGrid.length; y++) {
+                for (let x = 0; x < alienGrid[y].length; x++) {
+                    let pixelValue = alienGrid[y][x];
+                    if (pixelValue !== 0) {
+                        ctx.fillStyle = colors[pixelValue];
+                        ctx.fillRect(xOffset + x * pixelSize, yOffset + y * pixelSize, pixelSize, pixelSize);
+                    }
+                }
+            }
+        }
+
+        function moveAlien() {
+            posX += velocityX;
+            posY += velocityY;
+
+            if (posX <= 0 || posX + gridWidth * pixelSize >= canvasWidth) {
+                velocityX *= -1;
+            }
+            if (posY <= 0 || posY + gridHeight * pixelSize >= canvasHeight / 2) {
+                velocityY *= -1;
+            }
+        }
+
+        class Shooter {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = shooterWidth;
+                this.height = shooterHeight;
+                this.speed = 5;
+                this.projectiles = [];
+            }
+
+            moveLeft() {
+                this.x = Math.max(0, this.x - this.speed);
+            }
+
+            moveRight() {
+                this.x = Math.min(canvasWidth - this.width, this.x + this.speed);
+            }
+
+            draw() {
+                ctx.fillStyle = "#00f";
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+
+            shoot() {
+                this.projectiles.push(new Projectile(this.x + this.width / 2, this.y));
+            }
+
+            updateProjectiles() {
+                this.projectiles.forEach((projectile, index) => {
+                    projectile.update("up");
+                    projectile.draw();
+
+                    if (projectile.y <= 0) {
+                        this.projectiles.splice(index, 1);
+                    }
+
+                    if (
+                        projectile.x >= posX &&
+                        projectile.x <= posX + gridWidth * pixelSize &&
+                        projectile.y >= posY &&
+                        projectile.y <= posY + gridHeight * pixelSize
+                    ) {
+                        score++;
+                        updateScore();
+                        this.projectiles.splice(index, 1);
+                    }
+                });
+            }
+        }
+
+        class Projectile {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 5;
+                this.speed = 4;
+                this.color = "#ff0000";
+            }
+
+            update(direction) {
+                if (direction === "up") {
+                    this.y -= this.speed;
+                } else {
+                    this.y += this.speed;
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        function shootAlienProjectile() {
+            const alienProjectile = new Projectile(posX + (gridWidth * pixelSize) / 2, posY + gridHeight * pixelSize);
+            alienProjectile.color = "#ff0000";
+            alienProjectiles.push(alienProjectile);
+        }
+
+        function checkCollision() {
+            alienProjectiles.forEach((projectile, index) => {
+                projectile.update("down");
+                projectile.draw();
+
+                if (
+                    projectile.x >= shooter.x &&
+                    projectile.x <= shooter.x + shooter.width &&
+                    projectile.y >= shooter.y &&
+                    projectile.y <= shooter.y + shooter.height
+                ) {
+                    gameOver = true;
+                    document.getElementById("game-over").style.display = "block";
+                }
+
+                if (projectile.y > canvasHeight) {
+                    alienProjectiles.splice(index, 1);
+                }
+            });
+        }
+
+        let leftPressed = false;
+        let rightPressed = false;
+
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft") leftPressed = true;
+            if (e.key === "ArrowRight") rightPressed = true;
+        });
+
+        window.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowLeft") leftPressed = false;
+            if (e.key === "ArrowRight") rightPressed = false;
+        });
+
+        const shooter = new Shooter(canvasWidth / 2 - shooterWidth / 2, canvasHeight - 30);
+
+        function animate() {
+            if (!gameOver) {
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+                moveAlien();
+                drawAlien(posX, posY);
+
+                if (leftPressed) shooter.moveLeft();
+                if (rightPressed) shooter.moveRight();
+                shooter.draw();
+                shooter.updateProjectiles();
+
+                checkCollision();
+
+                requestAnimationFrame(animate);
+            }
+        }
+
+        setInterval(shootAlienProjectile, 1500);
+        setInterval(() => {
+            shooter.shoot();
+        }, 500);
+
+        animate();
+    </script>
+</body>
+</html>
